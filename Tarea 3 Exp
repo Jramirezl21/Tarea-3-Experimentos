@@ -1,0 +1,158 @@
+# Punt 4 ----
+#Matriz de incidencias 
+
+n1 = 5 ; n2 = 5 ; n3 = 5 ; n4 = 5
+
+
+x = cbind(rep(1,n1+n2+n3+n4),
+          c(rep(1,n1),rep(0,n2+n3+n4)),
+          c(rep(0,n3),rep(1,n1),rep(0,n3+n4)),
+          c(rep(0,n1+n2),rep(1,n4),rep(0,n3)),
+          c(rep(0,n2+n3+n4),rep(1,n1)))
+
+
+# Crear un vector con los valores de las dietas
+valores <- c(60.8, 67.0, 65.0, 68.6, 61.7, 68.7,
+ 67.7, 75.0, 73.3, 71.8, 69.6, 77.1, 75.2, 71.5, 74.3, 61.9, 64.2, 63.1, 66.7, 60.3)
+
+# Crear un vector con los tipos de dieta correspondientes
+tipos_dieta <- rep(c("Dieta A", "Dieta B", "Dieta C", "Dieta D"), each = 5)
+
+# Crear un dataframe
+data <- data.frame(Dieta = factor(tipos_dieta), Peso = valores)
+
+# Mostrar el dataframe
+print(data)
+
+#Analisis exploratorio
+library(doBy)
+
+
+
+# Visualización
+attach(data)
+
+par(mfrow=c(1,2))
+boxplot(Peso~Dieta, xlab="Dietas",col="purple")
+stripchart(Peso~Dieta, vertical=TRUE, method="jitter", ylab="Peso",
+ xlab="Dietas",pch=20,col="green", main="Gráfico de dispersión")
+points(tapply(Peso, Dieta, mean),pch=15, col="purple")
+lines(tapply(Peso, Dieta, mean),lty=2, col="purple")
+
+
+windows()
+par(mfrow=c(1,1))
+plot.design(data, fun="mean",
+ main=" Gráfica de efectos principales", ylab= "Peso", xlab="Factor")
+
+# Indicadores Decriptivos
+sumfun=function(x){
+  round(c(Media=mean(x),Desv=sd(x),Coef_Var=sd(x)/mean(x)),2)
+}
+
+summaryBy(Peso~Dieta,data=data,FUN=sumfun,var.names=NULL)
+## Estimacion de los parametros del modelo ----
+
+Modelo <- lm(Peso~Dieta,data) 
+anova(Modelo)                 
+summary(Modelo) 
+xtable::xtable(summary(Modelo))
+
+residuos <- rstandard(Modelo)
+windows()
+par(mfrow = c(2,2))
+#Normalidad
+car::qqPlot(Modelo, xlab = 'Cuantiles Teóricos', ylab = 'Cuantiles muestrales',
+            distribution = 'norm',"Normalidad")
+legend("topleft",paste("Valor-P (Shapiro-Wilk) = ",round(shapiro.test(residuos)$p.value,3)),bty = "n")
+length(residuos) 
+shapiro.test(residuos)           #Cuando n<30
+#nortest::ad.test(resid)      #Cuando n>=30
+
+#Media Cero:
+plot(Modelo$fitted.values, residuos, pch = 20,
+ main = "Media Cero", xlab = "Valores Ajustados", ylab = "Residuos")
+t.test(residuos, mu = 0, alternative = c("two.sided"))
+legend("topleft", paste("Valor-P (t test)= ", round(t.test(residuos, mu = 0, alternative = c("two.sided"))$p.value,3)),bty="n")
+abline(h = mean(residuos),col="purple",lty=2)
+summary(residuos)
+
+#Homogeneidad de Varianzas:
+stripchart(residuos^2 ~ data$Dieta,pch=20,vertical=TRUE,main="Varianza Constante")
+abline(h = 0,lty = 2)
+lines(lowess(residuos^2 ~ data$Dieta), col = "purple")
+legend("bottomleft", paste("Valor-P (bartlett test)= ", round(bartlett.test(residuos^2 ~ data$Dieta)$p.value,3)), bty = "n")
+bartlett.test(residuos~Datos$die)        #Bajo cumplimiento de normalidad.
+
+
+#car::leveneTest(resid~Nutriente, data)    #Bajo *no normalidad*
+
+#Independencia:
+plot(residuos[-1], residuos[-length(residuos)],
+pch = 20,ylab = expression(Residuos [t-1]),
+xlab = expression(Residuos [t]), main = "Independencia")
+lmtest::dwtest(Modelo)
+abline(lm(residuos[-1] ~ residuos[-length(residuos)]),lty=2,col="purple")
+legend("bottomleft",paste("Valor-P (Durbin-Watson test) = ",round(lmtest::dwtest(Modelo)$p.value,3)),bty = "n")
+#Estimacion
+X_rep <- x[,-2]
+t(X_rep)%*%X_rep
+t(X_rep)%*%matrix(valores)
+sol <- solve(t(X_rep)%*%X_rep)%*%t(X_rep)%*%valores
+
+Y..=20*mean(valores)
+SCTM <- sum(valores^2)-((Y..)^2)/20
+SCRM <- (sum(valores[1:5]))^2/5+(sum(valores[6:10]))^2/5+
+  (sum(valores[11:15]))^2/5+(sum(valores[16:20]))^2/5-((Y..)^2)/20
+SCE <- SCTM-SCRM
+R2= SCRM/SCTM
+
+gl1=3;gl2=16
+CMR=SCRM/gl1; CME=SCE/gl2 ; F_est=CMR/CME
+options(scipen=999)
+Valor_P= pf(F_est,gl1,gl2,lower.tail=F)
+
+mu1=mean(valores[1:5], na.rm=FALSE)#A
+mu2=mean(valores[6:10], na.rm=FALSE)#B
+mu3=mean(valores[11:15], na.rm=FALSE)#C
+mu4=mean(valores[16:20], na.rm=FALSE)#D
+
+1-(1-0.01)^(1/6)
+ 0.008512445/2
+0.01/6
+1/5
+options(scipen=999)
+0.0016/2
+AnovaModel <- aov(Modelo,data=data)
+agricolae::LSD.test(AnovaModel,"Dieta",alpha = 0.01, p.adj="bonferroni")
+windows()
+plot(agricolae::LSD.test(AnovaModel,"Dieta",alpha = 0.01, p.adj="bonferroni"))
+
+#Potencia
+#2. parámetro de no centralidad
+
+D=8;r=5;t=4
+mu=mean(c(mu1,mu2,mu3,mu4))
+tau_i= c(mu1,mu2,mu3,mu4)-mu
+mean(tau_i)
+ncp= (r*D^2)/(2*CME)
+
+F_crit = qf(0.01,t-1,t*(r-1),lower.tail=F)
+#3. Potencia del test
+
+fv=seq(0,15,by=0.01)
+plot(fv,df(fv,df1=t-1,df2=t*(r-1)),type="l",xlab="x",ylab="Density")
+abline(v=F_crit,col="red",lty=2,lwd=2)
+text(F_crit,0,paste("F = ",round(F_crit,2)),pos=2,cex=0.6)
+text(F_crit,0.7,"Reject Ho", col="red",pos=4)
+text(F_crit,0.7,"Accept Ho", col="blue",pos=2)
+
+xpol=seq(F_crit,15,by=0.1);ypol1=df(xpol,df1=t-1,df2=t*(r-1))
+polygon(x=c(F_crit,xpol,15), y = c(0,ypol1,0),col="red",angle=45,lty=2)
+
+potencia= pf(F_crit,df1=t-1,df2=t*(r-1),ncp=ncp,lower.tail=F)
+lines(fv,df(fv,df1=t-1,df2=t*(r-1),ncp=ncp),type="l",col="blue")
+ypol2=df(xpol,df1=t-1,df2=t*(r-1),ncp=ncp)
+polygon(x=c(F_crit,xpol,15), y = c(0,ypol2,0),col="blue",angle=45)
+polygon(x=c(F_crit,xpol,15), y = c(0,ypol1,0),col="red",angle=45,lty=2)
+text(F_crit,0.03,paste("1 - beta = ", round(potencia,2)), col="white",pos=4,cex=0.8)
